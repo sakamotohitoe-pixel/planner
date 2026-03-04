@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#2c2416;--ink2:#6b5c45;--ink3:#a8967e;--rule:#e8dfd0;
+  --bg:#faf6f0;--surface:#fffdf9;--green:#2d6a4f;--amber:#b45309;
+  --nav-h:56px;--pad:1.5rem;
+}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{font-family:'DM Sans',sans-serif;font-weight:300;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.5;overscroll-behavior:none}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;padding:0 var(--pad);height:var(--nav-h);gap:1.75rem;
+  padding-left:max(var(--pad),env(safe-area-inset-left));
+  padding-right:max(var(--pad),env(safe-area-inset-right))}
+.wordmark{font-family:'DM Serif Display',serif;font-size:1.15rem;letter-spacing:-.02em;margin-right:auto}
+.tab{font-size:.78rem;font-weight:400;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);
+  cursor:pointer;padding:6px 0;border:none;border-bottom:1.5px solid transparent;
+  background:none;font-family:inherit;transition:color .15s,border-color .15s;touch-action:manipulation}
+.tab:hover{color:var(--ink)}.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+
+/* PAGES */
+.page{display:none;padding:var(--pad);max-width:780px;margin:0 auto;
+  padding-bottom:calc(var(--pad) + env(safe-area-inset-bottom))}
+.page.on{display:block;animation:rise .22s ease}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* DATE ROW */
+.date-row{display:flex;align-items:baseline;gap:.85rem;margin-bottom:1.5rem}
+.date-num{font-family:'DM Serif Display',serif;font-size:3.25rem;line-height:1;letter-spacing:-.04em}
+.date-meta{color:var(--ink2);font-size:.92rem;line-height:1.4}
+
+/* DAILY 2-COL */
+.daily-cols{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start}
+
+/* SECTION */
+.section{margin-bottom:1.75rem}
+.s-label{font-size:.68rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+
+/* TIMELINE 24H */
+.timeline-wrap{border:1px solid var(--rule);border-radius:10px;background:var(--surface);overflow:hidden}
+.tl-row{display:grid;grid-template-columns:36px 1fr;min-height:36px}
+.tl-row.now{background:#fafaf6}
+.tl-row.now .tl-time{color:var(--ink);font-weight:500}
+.tl-time{font-size:.66rem;color:var(--ink3);padding-top:4px;text-align:right;padding-right:8px;user-select:none;letter-spacing:.02em}
+.tl-body{border-left:1px solid var(--rule);padding:3px 0 3px 9px;position:relative;cursor:pointer}
+.now-line{position:absolute;left:0;right:0;top:0;height:1.5px;background:var(--ink)}
+.tl-event{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;padding:2px 7px;border-radius:4px;margin-bottom:2px;cursor:pointer}
+.tl-event.ca{background:#f0fdf4;color:#2d6a4f}
+.tl-event.cb{background:#fef3c7;color:#b45309}
+.tl-event.cc{background:#f3f4f6;color:#555}
+.tl-event.cd{background:#ffe4e6;color:#be123c}
+.tl-event.ce{background:#ede9fe;color:#6d28d9}
+.tl-event.cf{background:#e0f2fe;color:#0369a1}
+.tl-color-row{display:flex;gap:5px;align-items:center;padding:2px 0}
+.tl-swatch{width:18px;height:18px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .12s;touch-action:manipulation;flex-shrink:0}
+.tl-swatch:active{transform:scale(1.25)}.tl-swatch.picked{border-color:var(--ink);transform:scale(1.2)}
+.tl-body:hover .tl-hint,.tl-body:focus-within .tl-hint{opacity:1}
+.tl-hint{font-size:.65rem;color:var(--ink3);opacity:0;transition:opacity .15s;pointer-events:none;user-select:none}
+.tl-input-row{display:flex;gap:4px;padding:3px 0}
+.tl-input-row input{flex:1;font-size:max(16px,.78rem);padding:2px 6px;border-radius:5px;height:26px;min-width:0}
+.tl-input-row button{border:none;border-radius:5px;padding:0 8px;height:26px;font-size:.72rem;cursor:pointer;font-family:inherit;touch-action:manipulation}
+.tl-btn-ok{background:var(--ink);color:#fff}.tl-btn-cancel{background:var(--rule);color:var(--ink2)}
+
+/* TASKS */
+.task-list{border-top:1px solid var(--rule)}
+.task-row{display:flex;align-items:center;gap:.7rem;padding:.62rem 0;border-bottom:1px solid var(--rule);cursor:pointer;touch-action:manipulation}
+.task-row:active{opacity:.6}
+.check{width:19px;height:19px;border:1.5px solid var(--ink3);border-radius:4px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:.62rem}
+.check.on{border-color:var(--ink);background:var(--ink);color:white}
+.task-text{font-size:.87rem;flex:1}.task-text.done{color:var(--ink3);text-decoration:line-through}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.add-row{display:flex;gap:.45rem;margin-top:.7rem}
+input[type=text],textarea,input[type=number]{
+  font-family:inherit;font-weight:300;border:1px solid var(--rule);border-radius:8px;
+  padding:.52rem .75rem;outline:none;background:var(--surface);color:var(--ink);
+  transition:border-color .15s;width:100%;font-size:max(16px,.87rem)}
+input[type=text]:focus,textarea:focus{border-color:var(--ink3)}
+.btn-add{border:1px solid var(--ink);background:var(--ink);color:white;border-radius:8px;
+  padding:.52rem .9rem;font-family:inherit;font-size:.82rem;font-weight:400;cursor:pointer;
+  white-space:nowrap;touch-action:manipulation;transition:opacity .15s}
+.btn-add:active{opacity:.75}
+
+/* HABITS */
+.habit-row{display:flex;align-items:center;gap:.7rem;padding:.58rem 0;border-bottom:1px solid var(--rule)}
+.habit-name{font-size:.84rem;flex:1}
+.h-dots{display:flex;gap:6px}
+.h-dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--rule);cursor:pointer;transition:all .15s;touch-action:manipulation;flex-shrink:0}
+.h-dot.on{background:var(--ink);border-color:var(--ink)}
+.streak{font-size:.68rem;color:var(--ink3);min-width:2.2rem;text-align:right}
+
+/* MOOD & WEATHER */
+.mood-row{display:flex;gap:.45rem;flex-wrap:wrap}
+.mood-opt,.w-opt{border:1px solid var(--rule);border-radius:8px;padding:.38rem .65rem;font-size:.8rem;
+  cursor:pointer;background:var(--surface);font-family:inherit;color:var(--ink2);
+  transition:all .15s;touch-action:manipulation;white-space:nowrap}
+.mood-opt:active,.w-opt:active{opacity:.7}
+.mood-opt.on,.w-opt.on{border-color:var(--ink);color:var(--ink);background:#f5f5f3}
+
+/* MEMO */
+textarea{resize:vertical;min-height:100px;line-height:1.7;padding:.72rem}
+
+/* GOALS */
+.goal-row{padding:.58rem 0;border-bottom:1px solid var(--rule)}
+.goal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.38rem}
+.goal-name{font-size:.87rem}.goal-pct{font-size:.76rem;color:var(--ink3);font-variant-numeric:tabular-nums}
+.bar{height:3px;background:var(--rule);border-radius:99px;overflow:hidden}
+.bar-fill{height:100%;background:var(--ink);border-radius:99px;transition:width .7s cubic-bezier(.34,1.2,.64,1)}
+
+/* WEEKLY GRID (shared by Weekly tab and Monthly tab) */
+.wk-head{display:grid;grid-template-columns:32px repeat(7,1fr);gap:2px;margin-bottom:2px}
+.wk-dlabel{text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--ink3);padding:2px 0;line-height:1.5}
+.wk-dlabel.td{color:var(--ink);font-weight:500}
+.wk-grid{display:grid;grid-template-columns:32px repeat(7,1fr);gap:2px}
+.wk-tlabel{font-size:.63rem;color:var(--ink3);text-align:right;padding-right:4px;padding-top:4px}
+.wk-cell{border:1px solid var(--rule);border-radius:4px;min-height:36px;padding:2px;cursor:pointer;transition:background .1s;touch-action:manipulation}
+.wk-cell:active{background:#f5f5f3}.wk-cell.td-col{background:#f9f9f7}
+.wk-ev{font-size:.63rem;border-radius:2px;padding:1px 3px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-ev.ca{background:#f0fdf4;color:#2d6a4f}.wk-ev.cb{background:#fef3c7;color:#b45309}
+.wk-ev.cc{background:#f3f4f6;color:#555}.wk-ev.cd{background:#ffe4e6;color:#be123c}
+.wk-ev.ce{background:#ede9fe;color:#6d28d9}.wk-ev.cf{background:#e0f2fe;color:#0369a1}
+/* weekly cell highlight (toggled by click) */
+.wk-cell.hl { background: #9bd7f2; border-color: #9bd7f2; }
+.wk-scroll::-webkit-scrollbar{height:3px}
+.wk-scroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:2px}
+
+/* MONTHLY */
+.mn-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem}
+.mn-title{font-family:'DM Serif Display',serif;font-size:1.35rem;letter-spacing:-.02em}
+.mn-btn{background:none;border:1px solid var(--rule);border-radius:7px;width:36px;height:36px;
+  font-size:1.1rem;cursor:pointer;font-family:inherit;color:var(--ink2);
+  display:flex;align-items:center;justify-content:center;touch-action:manipulation;transition:all .15s}
+.mn-btn:active{border-color:var(--ink);color:var(--ink)}
+.mn-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.mn-dh{text-align:center;font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);padding:3px 0 6px}
+.mn-cell{border-radius:8px;padding:5px 4px;min-height:66px;cursor:pointer;
+  border:1px solid transparent;transition:background .1s;touch-action:manipulation}
+.mn-cell:active{background:#f5f5f3}.mn-cell.today{border-color:var(--ink)}.mn-cell.other{opacity:.28}
+.mn-date{font-size:.78rem;font-weight:500;margin-bottom:3px}
+.mn-cell.today .mn-date{font-family:'DM Serif Display',serif;font-size:.9rem}
+/* event chips in monthly cells */
+.mn-ev{font-size:.6rem;border-radius:3px;padding:1px 4px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mn-ev.ca{background:#f0fdf4;color:#2d6a4f}.mn-ev.cb{background:#fef3c7;color:#b45309}
+.mn-ev.cc{background:#f3f4f6;color:#555}.mn-ev.cd{background:#ffe4e6;color:#be123c}
+.mn-ev.ce{background:#ede9fe;color:#6d28d9}.mn-ev.cf{background:#e0f2fe;color:#0369a1}
+
+/* DAILY NOTES (本日の予定 → monthly calendar) */
+.daily-notes-list { border-top: 1px solid var(--rule); }
+.dn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.dn-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dn-input {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 0.87rem;
+  font-weight: 300;
+  outline: none;
+  width: 100%;
+}
+.dn-input:focus { border-color: transparent; }
+.dn-input::placeholder { color: var(--ink3); }
+
+/* monthly note chips */
+.mn-note {
+  font-size: .58rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-bottom: 1px;
+}
+.mn-note-0 { background: #ffe4e6; color: #be123c; }
+.mn-note-1 { background: #e0f2fe; color: #0369a1; }
+.mn-wk-label{font-size:.68rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:.75rem}
+
+.btn-today {
+  font-size: .72rem;
+  font-weight: 400;
+  letter-spacing: .05em;
+  font-family: inherit;
+  color: var(--ink2);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-today:active { border-color: var(--ink); color: var(--ink); }
+@media(max-width:480px){
+  :root{--pad:1rem}
+  .daily-cols{grid-template-columns:1fr}
+  .date-num{font-size:2.75rem}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="wordmark">Planner</span>
+  <button class="tab on" onclick="show('daily',this)">Daily</button>
+  <button class="tab" onclick="show('monthly',this)">Monthly</button>
+  <button class="btn-today" onclick="goToToday()">Today</button>
+</nav>
+
+<!-- ═══ DAILY ═══ -->
+<div class="page on" id="p-daily">
+  <div class="date-row">
+    <div class="date-num" id="dNum"></div>
+    <div>
+      <div id="dDay" style="font-size:1.05rem;font-weight:400"></div>
+      <div id="dMonth" class="date-meta"></div>
+    </div>
+  </div>
+
+  <div class="daily-cols">
+    <!-- LEFT: 本日の予定 + Timeline -->
+    <div>
+      <div class="section">
+        <div class="s-label">本日の予定</div>
+        <div class="daily-notes-list" id="dailyNotesList"></div>
+      </div>
+      <div class="section">
+        <div class="s-label">タイムライン</div>
+        <div class="timeline-wrap" id="timeline"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div>
+      <div class="section">
+        <div class="s-label">今日の天気</div>
+        <div class="mood-row">
+          <button class="w-opt" onclick="pickWeather(this)">☀️ 晴</button>
+          <button class="w-opt" onclick="pickWeather(this)">☁️ 曇り</button>
+          <button class="w-opt" onclick="pickWeather(this)">🌧️ 雨</button>
+          <button class="w-opt" onclick="pickWeather(this)">💨 風</button>
+          <button class="w-opt" onclick="pickWeather(this)">❄️ 雪</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="s-label">今日の気分</div>
+        <div class="mood-row">
+          <button class="mood-opt" onclick="pickMood(this)">😄 最高</button>
+          <button class="mood-opt" onclick="pickMood(this)">😊 良い</button>
+          <button class="mood-opt" onclick="pickMood(this)">😐 普通</button>
+          <button class="mood-opt" onclick="pickMood(this)">😔 低め</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="s-label">タスク</div>
+        <div class="daily-notes-list" id="taskList"></div>
+      </div>
+
+      <div class="section">
+        <div class="s-label">3 Good Things</div>
+        <div class="daily-notes-list" id="goodThingsList"></div>
+      </div>
+
+      <div class="section">
+        <div class="s-label">メモ</div>
+        <textarea id="dailyMemo" style="resize:none;min-height:unset"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MONTHLY (Pattern C: 月カレンダー + 今週グリッド 縦並び) ═══ -->
+<div class="page" id="p-monthly">
+  <!-- month nav + calendar -->
+  <div class="mn-nav">
+    <button class="mn-btn" onclick="shiftMonth(-1)">‹</button>
+    <div class="mn-title" id="mnTitle"></div>
+    <button class="mn-btn" onclick="shiftMonth(1)">›</button>
+  </div>
+  <div class="mn-grid" id="mnGrid"></div>
+
+  <!-- divider -->
+  <div class="mn-divider"></div>
+
+  <!-- this week's grid -->
+  <div class="mn-wk-label" id="mnWkLabel"></div>
+  <div style="background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:1rem">
+    <div class="wk-scroll">
+      <div style="min-width:480px">
+        <div class="wk-head" id="mnWkHead"></div>
+        <div class="wk-grid" id="mnWkGrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ──
+const today  = new Date();
+const DAYSEN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYSJP = ['日','月','火','水','木','金','土'];
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+let calYear  = today.getFullYear();
+let calMonth = today.getMonth();
+
+// ── SHARED EVENT STORE ──
+// Key: "YYYY-M-D"  Value: [{h, t, cls}]
+const allEvents = {};
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+// Seed sample events on today
+function seedEvents() {}
+
+// ── DATA ──
+
+
+
+
+
+
+
+let viewDate = new Date(today); // currently viewed date in Daily
+
+// ── DATE HEADER ──
+function initDateRow() {
+  document.getElementById('dNum').textContent   = viewDate.getDate();
+  document.getElementById('dDay').textContent   = DAYSEN[viewDate.getDay()];
+  document.getElementById('dMonth').textContent = `${MONTHS[viewDate.getMonth()]} ${viewDate.getFullYear()}`;
+}
+
+// ── DAILY NOTES (本日の予定 → monthly calendar) ──
+// Store: { "YYYY-M-D": ["note1", "note2", "note3"] }
+const dailyNotes = {};
+const DN_MAX = 2;
+
+function todayNoteKey() { return dateKey(viewDate); }
+
+const DN_COLORS = ['#be123c', '#0369a1'];
+const DN_BG     = ['#ffe4e6', '#e0f2fe'];
+
+function renderDailyNotes() {
+  const k    = todayNoteKey();
+  if (!dailyNotes[k]) dailyNotes[k] = ['', ''];
+  const notes = dailyNotes[k];
+  while (notes.length < DN_MAX) notes.push('');
+
+  document.getElementById('dailyNotesList').innerHTML = notes.map((v, i) => `
+    <div class="dn-row">
+      <div class="dn-dot" style="background:${DN_COLORS[i]}"></div>
+      <input class="dn-input" type="text" value="${v.replace(/"/g,'&quot;')}"
+        oninput="saveDailyNote(${i}, this.value)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    </div>`).join('');
+}
+
+function saveDailyNote(i, val) {
+  const k = todayNoteKey();
+  if (!dailyNotes[k]) dailyNotes[k] = ['', ''];
+  dailyNotes[k][i] = val;
+  refreshMnCell(viewDate);
+  saveData();
+}
+
+function refreshMnCell(date) {
+  // find the mn-cell for this date and update its notes
+  const cells = document.querySelectorAll('#mnGrid .mn-cell');
+  cells.forEach(cell => {
+    const numEl = cell.querySelector('.mn-date');
+    if (!numEl) return;
+    const cellDate = cell._date;
+    if (!cellDate || cellDate.toDateString() !== date.toDateString()) return;
+    updateMnCellNotes(cell, date);
+  });
+}
+
+function updateMnCellNotes(cell, date) {
+  const k     = dateKey(date);
+  const notes = (dailyNotes[k] || []);
+  cell.querySelectorAll('.mn-note').forEach(el => el.remove());
+  notes.forEach((n, i) => {
+    if (!n.trim()) return;
+    const el = document.createElement('div');
+    el.className = `mn-note mn-note-${i}`;
+    el.textContent = n;
+    cell.appendChild(el);
+  });
+}
+
+// ── WEATHER ──
+function pickWeather(el) {
+  document.querySelectorAll('.w-opt').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+// ── TIMELINE ──
+const TL_COLORS = [
+  {cls:'ca',bg:'#bbf7d0'},{cls:'cb',bg:'#fde68a'},{cls:'cc',bg:'#e5e7eb'},
+  {cls:'cd',bg:'#fecdd3'},{cls:'ce',bg:'#ddd6fe'},{cls:'cf',bg:'#bae6fd'},
+];
+let tlActiveInput = null;
+let tlPickedColor = 'cc';
+
+function renderTimeline() {
+  const wrap = document.getElementById('timeline');
+  const now  = today.getHours();
+  const k    = dateKey(viewDate);
+  const dayEvs = allEvents[k] || [];
+
+  let html = '';
+  for (let h = 7; h <= 22; h++) {
+    const isNow   = h === now && viewDate.toDateString() === today.toDateString();
+    const nowLine = isNow ? `<div class="now-line"></div>` : '';
+    const evs     = dayEvs.filter(e => e.h === h);
+    const evHTML  = evs.map((e, ei) =>
+      `<div class="tl-event ${e.cls}" onclick="deleteTlEvent(event,'${k}',${h},${ei})" title="タップで削除">
+         ${e.t}<span style="opacity:.35;margin-left:2px;font-size:.62rem">×</span>
+       </div>`
+    ).join('');
+
+    let inputHTML = '';
+    if (tlActiveInput === h) {
+      const swatches = TL_COLORS.map(c =>
+        `<div class="tl-swatch${tlPickedColor===c.cls?' picked':''}"
+              style="background:${c.bg}"
+              onclick="pickTlColor(event,'${c.cls}')"></div>`
+      ).join('');
+      inputHTML = `
+        <div class="tl-color-row">${swatches}</div>
+        <div class="tl-input-row">
+          <input id="tl-inp-${h}" type="text" placeholder="予定名…" onkeydown="tlKeydown(event,${h})">
+          <button class="tl-btn-ok" onclick="confirmTlEvent(${h})">追加</button>
+          <button class="tl-btn-cancel" onclick="cancelTlInput()">✕</button>
+        </div>`;
+    } else {
+      inputHTML = `<span class="tl-hint">＋ タップして追加</span>`;
+    }
+
+    html += `<div class="tl-row${isNow?' now':''}" onclick="openTlInput(event,${h})">
+      <div class="tl-time">${String(h).padStart(2,'0')}</div>
+      <div class="tl-body">${nowLine}${evHTML}${inputHTML}</div>
+    </div>`;
+  }
+  wrap.innerHTML = html;
+  if (tlActiveInput !== null) {
+    const inp = document.getElementById(`tl-inp-${tlActiveInput}`);
+    if (inp) inp.focus();
+  }
+}
+
+function openTlInput(e, h) {
+  if (e.target.closest('.tl-event')||e.target.closest('button')||e.target.closest('input')||e.target.closest('.tl-swatch')) return;
+  tlActiveInput = (tlActiveInput === h) ? null : h;
+  renderTimeline();
+}
+function pickTlColor(e, cls) { e.stopPropagation(); tlPickedColor = cls; renderTimeline(); }
+function confirmTlEvent(h) {
+  const inp = document.getElementById(`tl-inp-${h}`);
+  const v   = inp ? inp.value.trim() : '';
+  if (v) {
+    const k = dateKey(viewDate);
+    if (!allEvents[k]) allEvents[k] = [];
+    allEvents[k].push({h, t:v, cls:tlPickedColor});
+  }
+  tlActiveInput = null;
+  renderTimeline();
+  renderMonthly();
+  saveData();
+}
+function cancelTlInput() { tlActiveInput = null; renderTimeline(); }
+function tlKeydown(e, h) {
+  if (e.key==='Enter') confirmTlEvent(h);
+  if (e.key==='Escape') cancelTlInput();
+}
+function deleteTlEvent(e, k, h, ei) {
+  e.stopPropagation();
+  if (!allEvents[k]) return;
+  const evs = allEvents[k].filter(ev => ev.h === h);
+  const all = allEvents[k];
+  let count = 0;
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].h === h) {
+      if (count === ei) { all.splice(i, 1); break; }
+      count++;
+    }
+  }
+  if (allEvents[k].length === 0) delete allEvents[k];
+  renderTimeline();
+  renderMonthly();
+  saveData();
+}
+
+// ── TASKS (3 fixed rows with checkbox) ──
+const tasks = [{t:'',done:false},{t:'',done:false},{t:'',done:false}];
+
+function renderTasks() {
+  document.getElementById('taskList').innerHTML = tasks.map((t,i) => `
+    <div class="dn-row" style="gap:.6rem">
+      <div class="check ${t.done?'on':''}" onclick="toggleTask(${i})" style="cursor:pointer;flex-shrink:0">✓</div>
+      <input class="dn-input ${t.done?'done':''}" type="text" value="${t.t.replace(/"/g,'&quot;')}"
+        style="${t.done?'color:var(--ink3);text-decoration:line-through':''}"
+        oninput="tasks[${i}].t=this.value; saveData()"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    </div>`).join('');
+}
+function toggleTask(i) { tasks[i].done=!tasks[i].done; renderTasks(); saveData(); }
+
+// ── 3 GOOD THINGS ──
+function renderGoodThings() {
+  document.getElementById('goodThingsList').innerHTML = [0,1,2].map(i => `
+    <div class="dn-row">
+      <input class="dn-input" type="text" placeholder=""
+        oninput="void(0)"
+        onkeydown="if(event.key==='Enter')this.blur()">
+    </div>`).join('');
+}
+
+// ── MOOD ──
+function pickMood(el) {
+  document.querySelectorAll('.mood-opt').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+
+
+
+// ── WEEK DATES HELPER ──
+function getWeekDates(baseDate) {
+  const dow = baseDate.getDay();
+  const mon = new Date(baseDate);
+  mon.setDate(baseDate.getDate() - (dow===0?6:dow-1));
+  return Array.from({length:7}, (_,i) => { const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+
+// ── WEEKLY GRID RENDERER (shared) ──
+const wkHighlights = {}; // key: "YYYY-M-D-H" → true
+
+function toggleWkCell(k) {
+  wkHighlights[k] = !wkHighlights[k];
+  renderMonthlyWeek();
+  saveData();
+}
+
+function renderWkGrid(headId, gridId, dates) {
+  let head = '<div></div>';
+  dates.forEach(d => {
+    const isTd = d.toDateString()===today.toDateString();
+    head += `<div class="wk-dlabel${isTd?' td':''}">${DAYSJP[d.getDay()]}<br><b>${d.getDate()}</b></div>`;
+  });
+  document.getElementById(headId).innerHTML = head;
+
+  let grid = '';
+  for (let h=7; h<=22; h++) {
+    grid += `<div class="wk-tlabel">${String(h).padStart(2,'0')}</div>`;
+    dates.forEach(d => {
+      const isTd = d.toDateString()===today.toDateString();
+      const dk = dateKey(d);
+      const ck = `${dk}-${h}`;
+      const hl = wkHighlights[ck] ? ' hl' : '';
+      const evs = (allEvents[dk]||[]).filter(e=>e.h===h);
+      const evHTML = evs.map(e=>`<div class="wk-ev ${e.cls}">${e.t}</div>`).join('');
+      grid += `<div class="wk-cell${isTd?' td-col':''}${hl}" onclick="toggleWkCell('${ck}')">${evHTML}</div>`;
+    });
+  }
+  document.getElementById(gridId).innerHTML = grid;
+}
+
+// ── VIEW SWITCH ──
+function show(id,btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('p-'+id).classList.add('on');
+  btn.classList.add('on');
+  if(id==='monthly') renderMonthly();
+}
+// ── MONTHLY (Pattern C) ──
+let calWkOffset = 0; // week offset within the displayed month (0 = first week)
+
+function renderMonthly() {
+  // — month calendar —
+  document.getElementById('mnTitle').textContent = `${MONTHS[calMonth]} ${calYear}`;
+  const grid = document.getElementById('mnGrid');
+  grid.innerHTML = '';
+  DAYSJP.forEach(d => { const h=document.createElement('div'); h.className='mn-dh'; h.textContent=d; grid.appendChild(h); });
+  const first = new Date(calYear,calMonth,1).getDay();
+  const last  = new Date(calYear,calMonth+1,0).getDate();
+  const mkCell = (d, other) => {
+    const el  = document.createElement('div');
+    const isTd = d.toDateString()===today.toDateString();
+    el.className = `mn-cell${isTd?' today':''}${other?' other':''}`;
+    el._date = d;
+    const k     = dateKey(d);
+    const notes = (dailyNotes[k] || []);
+    const noteHTML = notes.map((n, i) => n.trim() ? `<div class="mn-note mn-note-${i}">${n}</div>` : '').join('');
+    el.innerHTML = `<div class="mn-date">${d.getDate()}</div>${noteHTML}`;
+    el.onclick = () => goToDate(new Date(d));
+    return el;
+  };
+  for(let i=0;i<first;i++) grid.appendChild(mkCell(new Date(calYear,calMonth,1-first+i),true));
+  for(let d=1;d<=last;d++) grid.appendChild(mkCell(new Date(calYear,calMonth,d),false));
+  const rem=(first+last)%7===0?0:7-(first+last)%7;
+  for(let i=1;i<=rem;i++) grid.appendChild(mkCell(new Date(calYear,calMonth+1,i),true));
+
+  renderMonthlyWeek();
+}
+
+// Build all week-start dates (Mon) for the displayed month's calendar rows
+function getMonthWeeks() {
+  const first = new Date(calYear,calMonth,1).getDay();
+  const dow   = first === 0 ? 6 : first - 1; // days before Mon
+  const mon1  = new Date(calYear,calMonth,1 - dow);
+  const last  = new Date(calYear,calMonth+1,0).getDate();
+  const totalCells = first + last;
+  const rows  = Math.ceil(totalCells / 7);
+  return Array.from({length: rows}, (_, i) => {
+    const d = new Date(mon1); d.setDate(mon1.getDate() + i * 7); return d;
+  });
+}
+
+function renderMonthlyWeek() {
+  const weeks = getMonthWeeks();
+  // clamp offset
+  calWkOffset = Math.max(0, Math.min(calWkOffset, weeks.length - 1));
+  const mon   = weeks[calWkOffset];
+  const dates = Array.from({length:7}, (_,i) => { const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+  const sun   = dates[6];
+
+  // label with prev/next buttons
+  document.getElementById('mnWkLabel').innerHTML =
+    `<div style="display:flex;align-items:center;justify-content:space-between">
+       <button class="mn-btn" style="width:28px;height:28px;font-size:.9rem" onclick="shiftWeek(-1)">‹</button>
+       <span>${calYear}年${calMonth+1}月 ${mon.getMonth()+1}/${mon.getDate()} – ${sun.getMonth()+1}/${sun.getDate()}</span>
+       <button class="mn-btn" style="width:28px;height:28px;font-size:.9rem" onclick="shiftWeek(1)">›</button>
+     </div>`;
+  renderWkGrid('mnWkHead','mnWkGrid',dates);
+}
+
+function shiftWeek(n) {
+  calWkOffset += n;
+  renderMonthlyWeek();
+}
+
+function shiftMonth(n) {
+  calMonth += n;
+  if(calMonth>11){calMonth=0;calYear++;}
+  if(calMonth<0){calMonth=11;calYear--;}
+  calWkOffset = 0; // reset to first week of new month
+  renderMonthly();
+}
+
+// ── VIEW SWITCH ──
+function show(id,btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('p-'+id).classList.add('on');
+  btn.classList.add('on');
+  if(id==='monthly') renderMonthly();
+}
+
+// ── TODAY ──
+function goToToday() {
+  const activePage = document.querySelector('.page.on');
+  if (activePage && activePage.id === 'p-monthly') {
+    // monthly: return to current month
+    calYear  = today.getFullYear();
+    calMonth = today.getMonth();
+    calWkOffset = 0;
+    renderMonthly();
+  } else {
+    // daily: return to today
+    goToDate(new Date(today));
+  }
+}
+
+// ── NAVIGATE TO DATE ──
+function goToDate(date) {
+  viewDate = date;
+  initDateRow();
+  renderDailyNotes();
+  renderTimeline();
+  renderTasks();
+  renderGoodThings();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('p-daily').classList.add('on');
+  document.querySelectorAll('.tab')[0].classList.add('on');
+  requestAnimationFrame(matchMemoHeight);
+}
+
+function matchMemoHeight() {
+  const memo = document.getElementById('dailyMemo');
+  const tl   = document.getElementById('timeline');
+  if (!memo || !tl) return;
+
+  // Total height available = timeline bottom edge (relative to page top)
+  const tlBottom = tl.getBoundingClientRect().bottom;
+
+  // Bottom of the element just above memo (the 3 Good Things section)
+  const memoTop = memo.getBoundingClientRect().top;
+
+  // Available space = timeline bottom - memo top, minus some bottom padding
+  const available = tlBottom - memoTop - 16;
+  memo.style.height = Math.max(40, available) + 'px';
+}
+
+// ── LOCAL STORAGE ──
+const LS_KEY = 'planner_v1';
+
+function saveData() {
+  const payload = {
+    allEvents,
+    dailyNotes,
+    tasks,
+    wkHighlights,
+  };
+  try { localStorage.setItem(LS_KEY, JSON.stringify(payload)); } catch(e) {}
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (d.allEvents)    Object.assign(allEvents,    d.allEvents);
+    if (d.dailyNotes)   Object.assign(dailyNotes,   d.dailyNotes);
+    if (d.wkHighlights) Object.assign(wkHighlights, d.wkHighlights);
+    if (d.tasks && Array.isArray(d.tasks)) {
+      d.tasks.forEach((t, i) => { if (tasks[i] !== undefined) tasks[i] = t; });
+    }
+  } catch(e) {}
+}
+
+// ── BOOT ──
+loadData();
+seedEvents();
+initDateRow();
+renderDailyNotes();
+renderTimeline();
+renderTasks();
+renderGoodThings();
+renderMonthly();
+requestAnimationFrame(() => {
+  matchMemoHeight();
+  window.addEventListener('resize', matchMemoHeight);
+});
+</script>
+</body>
+</html>
